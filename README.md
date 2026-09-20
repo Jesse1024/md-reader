@@ -19,6 +19,8 @@
 
 下载 `index.html`，双击用浏览器打开即可。无需安装、无需联网。
 
+Windows 用户也可以直接双击 `install.bat`，一键装到桌面并生成快捷方式，见下文「安装与桌面快捷方式」。
+
 或克隆仓库：
 
 ```bash
@@ -36,15 +38,32 @@ open index.html    # macOS
 
 左侧默认显示全文（能看到上下文），可切「只看命中」只看含关键词的段落。
 
-## 桌面应用（可选）
+## 安装与桌面快捷方式（Windows）
 
-Windows 上想让它像独立软件一样打开，可以用 Edge 的应用模式，配合一个桌面快捷方式：
+**方式一：一键安装（推荐）**
 
-```bash
-msedge --app="file:///绝对路径/index.html"
+下载并解压仓库后，双击 `install.bat`，脚本会：
+
+1. 把文件复制到 `%LOCALAPPDATA%\MDReader`
+2. 在桌面创建「MD Reader」快捷方式（用系统自带的 Edge，以应用模式打开，无地址栏、无标签页）
+
+之后双击桌面「MD Reader」就是独立窗口。脚本会自动检测 Edge，没有 Edge 时回退到 Chrome。
+
+> 若 Windows 提示「来自其他计算机」的安全警告，点「更多信息 → 仍要运行」。
+
+**方式二：便携使用**
+
+不安装，直接双击 `index.html` 用浏览器打开，功能完全一样。
+
+**方式三：手动创建快捷方式**
+
+想自己控制，手动新建快捷方式，目标填：
+
+```
+"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --app="file:///D:/path/to/index.html"
 ```
 
-双击快捷方式就是无地址栏、无标签页的独立窗口。
+把路径换成你解压后的实际位置。
 
 ## 技术说明
 
@@ -67,6 +86,8 @@ msedge --app="file:///绝对路径/index.html"
 md-reader/
 ├── index.html      # 应用主体（单文件）
 ├── icon.ico        # 图标
+├── install.bat     # Windows 一键安装（双击）
+├── install.ps1     # 安装脚本（install.bat 调用）
 ├── screenshot.png  # 截图
 ├── README.md
 └── LICENSE
