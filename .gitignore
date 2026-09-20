@@ -1,0 +1,7 @@
+# 系统文件
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# 本地临时
+*.log

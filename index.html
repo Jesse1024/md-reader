@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="icon.ico" type="image/x-icon">
+<title>MD 阅读器 · 本地文档检索定位</title>
+<style>
+  :root {
+    --bg: #f6f4f0;
+    --panel: #fbfaf8;
+    --ink: #23211d;
+    --ink-soft: #4a463f;
+    --muted: #8f8980;
+    --border: #e6e1d8;
+    --border-strong: #d8d2c7;
+    --accent: #b5493a;
+    --accent-ink: #8f382c;
+    --accent-soft: #f4e4e1;
+    --mark: #ffe08a;
+    --mark-ink: #4a3a08;
+    --hit-bg: #fdf6e3;
+    --hit-edge: #eec96a;
+    --code-bg: #f0ece5;
+    --code-ink: #4a463f;
+    --sel-bg: #f3e9e6;
+    --shadow: 0 1px 2px rgba(40,32,20,.06), 0 8px 24px rgba(40,32,20,.08);
+    --radius: 10px;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    --font-doc: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Consolas, "Courier New", monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #1b1a17;
+    --panel: #23211d;
+    --ink: #e8e4da;
+    --ink-soft: #c4bfb4;
+    --muted: #8b857a;
+    --border: #38342c;
+    --border-strong: #4a453b;
+    --accent: #e07a67;
+    --accent-ink: #f0a394;
+    --accent-soft: #3a2a26;
+    --mark: #5c4d12;
+    --mark-ink: #f3e6b0;
+    --hit-bg: #302c1d;
+    --hit-edge: #6d5c1a;
+    --code-bg: #2a2823;
+    --code-ink: #c4bfb4;
+    --sel-bg: #322a26;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font-ui);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+
+  /* ============ 整体框架 ============ */
+  .app { display: flex; flex-direction: column; height: 100vh; min-height: 560px; }
+
+  /* 顶栏 */
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 16px; height: 52px; flex: none;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; font-size: 14.5px; letter-spacing: .2px; }
+  .brand .logo {
+    width: 26px; height: 26px; border-radius: 7px; flex: none;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  }
+  .brand .sub { color: var(--muted); font-weight: 450; font-size: 12px; }
+  .stats { color: var(--muted); font-size: 12.5px; }
+  .stats b { color: var(--ink-soft); font-weight: 600; }
+  .spacer { flex: 1; }
+  .btn {
+    appearance: none; border: 1px solid var(--border-strong); background: var(--panel);
+    color: var(--ink-soft); font-family: inherit; font-size: 13px; font-weight: 550;
+    padding: 7px 13px; border-radius: 8px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: all .15s ease;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-ink); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn svg { width: 15px; height: 15px; }
+
+  /* 主体：左右两栏 */
+  .main { flex: 1; display: flex; min-height: 0; }
+
+  /* 右侧：检索 + 命中列表 */
+  .sidebar {
+    width: 380px; flex: none; display: flex; flex-direction: column;
+    background: var(--panel); border-left: 1px solid var(--border); min-height: 0;
+  }
+  .searchbox { padding: 14px 14px 10px; }
+  .search-wrap {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--border-strong); border-radius: 9px;
+    padding: 0 10px; background: var(--bg); transition: border-color .15s, box-shadow .15s;
+  }
+  .search-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search-wrap svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+  .search-wrap input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-family: inherit; font-size: 14px; color: var(--ink); padding: 9px 0;
+  }
+  .search-wrap input::placeholder { color: var(--muted); }
+  .search-wrap .clear { border: none; background: none; cursor: pointer; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 4px; display: none; }
+  .search-wrap .clear:hover { color: var(--accent); }
+  .search-hint { font-size: 11.5px; color: var(--muted); margin-top: 7px; padding: 0 2px; }
+  .search-hint kbd {
+    font-family: var(--font-mono); font-size: 10.5px; background: var(--bg);
+    border: 1px solid var(--border-strong); border-radius: 4px; padding: 1px 5px;
+  }
+
+  .result-meta { display: flex; align-items: center; gap: 8px; padding: 8px 16px 8px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
+  .result-meta .count { font-weight: 600; color: var(--accent-ink); }
+  .result-meta .sep { flex: 1; }
+
+  .results { flex: 1; overflow-y: auto; padding: 4px 8px 16px; min-height: 0; }
+
+  .doc-group { margin-bottom: 6px; }
+  .doc-group-head {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 8px; font-size: 12.5px; font-weight: 650; color: var(--ink-soft);
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .doc-group-head .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-group-head .badge {
+    flex: none; font-size: 11px; font-weight: 600; color: var(--accent-ink);
+    background: var(--accent-soft); border-radius: 20px; padding: 1px 8px;
+  }
+  .result-item {
+    display: block; width: 100%; text-align: left; cursor: pointer;
+    border: 1px solid transparent; border-left: 3px solid transparent;
+    background: transparent; border-radius: 7px; padding: 8px 9px; margin: 1px 0;
+    font-family: inherit; transition: background .12s ease, border-color .12s ease;
+  }
+  .result-item:hover { background: var(--bg); }
+  .result-item.active { background: var(--sel-bg); border-color: var(--border); border-left-color: var(--accent); }
+  .result-item .heading { font-size: 12.5px; font-weight: 650; color: var(--ink-soft); margin-bottom: 2px; }
+  .result-item .snippet {
+    font-size: 12.5px; color: var(--muted); line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .result-item .snippet mark { background: var(--mark); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+
+  .empty { padding: 42px 22px; text-align: center; color: var(--muted); font-size: 13px; }
+  .empty .big { font-size: 15px; color: var(--ink-soft); margin-bottom: 8px; font-weight: 600; }
+  .empty .tip { font-size: 12px; line-height: 1.7; }
+
+  /* 左侧：文档阅读区 */
+  .reader { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .reader-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 24px; height: 46px; flex: none;
+    border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  .reader-head .doc-title { font-size: 13.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reader-head .doc-title .path { color: var(--muted); font-weight: 450; font-size: 12px; margin-left: 6px; }
+  .reader-head .mini-badge { flex: none; font-size: 11px; color: var(--accent-ink); background: var(--accent-soft); border-radius: 20px; padding: 1px 9px; font-weight: 600; }
+  .reader-head .spacer { flex: 1; }
+  .chips { display: flex; gap: 6px; }
+  .chip {
+    appearance: none; border: 1px solid var(--border-strong); background: var(--panel);
+    color: var(--ink-soft); font-family: inherit; font-size: 12px; font-weight: 550;
+    padding: 4px 11px; border-radius: 20px; cursor: pointer; transition: all .15s;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .doc-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+  .doc {
+    max-width: 760px; margin: 0 auto; padding: 34px 40px 80px;
+    font-family: var(--font-doc); font-size: 15.5px; line-height: 1.85; color: var(--ink-soft);
+  }
+
+  /* 段落块 */
+  .blk { position: relative; border-radius: 6px; padding: 2px 10px; margin: 0 -10px; scroll-margin: 40px; }
+  .blk.hit { background: var(--hit-bg); }
+  .blk.hit::before {
+    content: ""; position: absolute; left: -10px; top: 0; bottom: 0; width: 3px;
+    background: var(--hit-edge); border-radius: 2px;
+  }
+  .blk.active { box-shadow: inset 0 0 0 2px var(--hit-edge); }
+  .blk + .blk { margin-top: 10px; }
+
+  .doc h1, .doc h2, .doc h3, .doc h4, .doc h5, .doc h6 {
+    font-weight: 700; color: var(--ink); line-height: 1.4; margin: 0 0 6px; letter-spacing: .2px;
+  }
+  .doc h1 { font-size: 26px; margin-bottom: 10px; }
+  .doc h2 { font-size: 21px; }
+  .doc h3 { font-size: 18px; }
+  .doc h4 { font-size: 16px; }
+  .doc p { margin: 0 0 10px; }
+  .doc p:last-child { margin-bottom: 0; }
+  .doc a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 3px; }
+  .doc strong { color: var(--ink); font-weight: 700; }
+  .doc em { color: var(--ink-soft); }
+  .doc del { color: var(--muted); }
+  .doc code {
+    font-family: var(--font-mono); font-size: .87em;
+    background: var(--code-bg); color: var(--code-ink);
+    padding: .15em .4em; border-radius: 4px;
+  }
+  .doc pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 13px 15px; overflow-x: auto; margin: 0 0 10px;
+  }
+  .doc pre code { background: none; padding: 0; font-size: 13px; line-height: 1.6; color: var(--code-ink); }
+  .doc blockquote {
+    border-left: 3px solid var(--border-strong); padding: 2px 0 2px 14px;
+    color: var(--muted); margin: 0 0 10px;
+  }
+  .doc ul, .doc ol { padding-left: 24px; margin: 0 0 10px; }
+  .doc li { margin: 2px 0; }
+  .doc li.task { list-style: none; margin-left: -24px; }
+  .doc li.task input { margin-right: 7px; accent-color: var(--accent); }
+  .doc hr { border: none; border-top: 1px solid var(--border-strong); margin: 18px 0; }
+  .doc table { border-collapse: collapse; margin: 0 0 12px; width: 100%; font-size: 14px; }
+  .doc th, .doc td { border: 1px solid var(--border-strong); padding: 7px 11px; text-align: left; }
+  .doc th { background: var(--bg); font-weight: 650; color: var(--ink); }
+  .doc img { max-width: 100%; border-radius: 6px; }
+
+  mark {
+    background: var(--mark); color: var(--mark-ink); border-radius: 2px; padding: 0 1px;
+  }
+
+  /* 空状态 */
+  .welcome { max-width: 620px; margin: 0 auto; padding: 40px 24px; color: var(--muted); }
+  .welcome h2 { color: var(--ink); font-size: 20px; margin-bottom: 12px; }
+  .welcome p { margin-bottom: 10px; font-size: 14px; }
+  .welcome ul { padding-left: 20px; margin-bottom: 16px; font-size: 14px; }
+  .welcome li { margin: 5px 0; }
+  .welcome .kbd { font-family: var(--font-mono); font-size: 12px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 4px; padding: 1px 6px; }
+
+  /* 响应式 */
+  @media (max-width: 860px) {
+    .main { flex-direction: column; }
+    .sidebar { width: 100%; height: 45%; border-left: none; border-top: 1px solid var(--border); }
+    .reader { height: 55%; }
+  }
+
+  /* 拖拽遮罩 */
+  .drop-overlay {
+    position: fixed; inset: 0; z-index: 999;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .16s ease;
+  }
+  .drop-overlay.show { opacity: 1; }
+  .drop-overlay .card {
+    border: 2px dashed var(--accent); border-radius: 14px;
+    padding: 32px 46px; background: var(--panel);
+    color: var(--accent-ink); font-size: 15px; font-weight: 600;
+    box-shadow: var(--shadow);
+  }
+  /* 轻提示 */
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(16px);
+    background: var(--ink); color: var(--bg); padding: 9px 18px; border-radius: 8px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: all .25s ease;
+    z-index: 1000; box-shadow: var(--shadow); max-width: 80vw;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">MD</span>
+      <span>本地文档阅读器</span>
+      <span class="sub">检索 · 定位</span>
+    </div>
+    <div class="stats" id="stats">未加载文档</div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="themeBtn" title="切换深浅主题">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+    <button class="btn primary" id="pickBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      选择 MD 文件夹
+    </button>
+  </header>
+
+  <div class="main">
+    <section class="reader">
+      <div class="reader-head" id="readerHead">
+        <span class="doc-title" id="docTitle">选择文档开始</span>
+        <span class="mini-badge" id="docBadge" style="display:none"></span>
+        <div class="spacer"></div>
+        <div class="chips">
+          <button class="chip on" id="modeFull" title="显示全文，命中段高亮">全文</button>
+          <button class="chip" id="modeHit" title="只看命中段">只看命中</button>
+        </div>
+      </div>
+      <div class="doc-scroll" id="docScroll">
+        <div class="welcome" id="welcome">
+          <h2>欢迎</h2>
+          <p>这是一个本地 Markdown 阅读器。右侧输入关键词，即可在所有 md 文档中检索；点击任意命中段，左侧会跳到该文档对应的内容区域。</p>
+          <ul>
+            <li>点右上角 <span class="kbd">选择 MD 文件夹</span> 载入你自己的文档（支持子目录）。</li>
+            <li>内置了几篇示例笔记，现在就可以在右侧搜索框试试，比如 <span class="kbd">基金</span>、<span class="kbd">风险</span>、<span class="kbd">PMI</span>。</li>
+            <li>关键词用空格分隔，表示「同时包含」，例如 <span class="kbd">基金 风险</span>。</li>
+          </ul>
+          <p>快捷键：<span class="kbd">/</span> 聚焦搜索框 · <span class="kbd">↑↓</span> 切换结果 · <span class="kbd">Enter</span> 跳到选中段</p>
+        </div>
+        <div class="doc" id="doc" style="display:none"></div>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <div class="searchbox">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="检索关键词，空格分隔多个词" autocomplete="off" spellcheck="false">
+          <button class="clear" id="clearBtn" title="清空">×</button>
+        </div>
+        <div class="search-hint" id="searchHint">支持多词并含检索 · 不区分大小写</div>
+      </div>
+      <div class="result-meta" id="resultMeta" style="display:none">
+        <span>命中 <span class="count" id="hitCount">0</span> 处</span>
+        <span class="sep"></span>
+        <span id="docHitCount"></span>
+      </div>
+      <div class="results" id="results">
+        <div class="empty">
+          <div class="big">输入关键词开始检索</div>
+          <div class="tip">在本地文档中查找包含这些词的内容段，<br>点击后跳到对应位置。</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="drop-overlay" id="dropOverlay">
+  <div class="card">松开即可读入 md 文档</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<input type="file" id="fileInput" webkitdirectory multiple accept=".md,.markdown,.txt" style="display:none">
+
+<script>
+"use strict";
+
+/* ================= 示例文档 ================= */
+const SAMPLES = [
+{ name: "投资笔记.md", raw: `# 投资笔记
+
+## 关于基金
+
+基金是我长期配置的主要工具。相比直接买股票，基金分散了单一个股的风险，适合没有太多时间盯盘的投资者。
+
+### 主动基金与指数基金
+
+主动基金依赖基金经理的选股能力，费率偏高；指数基金费率低，长期收益更贴近市场平均。
+
+> 关键认识：**不要用短期的涨跌来评价一只基金的好坏**，要看它在完整牛熊周期里的表现。
+
+## 风险管理
+
+投资的第一个原则是控制风险，而不是追求最高收益。
+
+- 仓位管理：单只基金不超过总资产的 20%
+- 分散：股债搭配，降低整体波动
+- 定投：用时间平滑买入成本
+
+### 止损与止盈
+
+止损是为了防止本金永久性损失，止盈是为了锁定收益。两者都需要纪律。
+
+\`\`\`
+最大回撤 = (净值最高点 - 净值最低点) / 净值最高点
+\`\`\`
+
+## 年度总结
+
+今年整体收益跑赢了沪深 300 约 6 个百分点，主要来自医药和半导体两个板块的仓位。
+
+风险控制做得一般，中间有过一次较大的回撤，教训是：**不要在下跌中恐慌性清仓**。
+` },
+{ name: "宏观数据整理.md", raw: `# 宏观数据整理
+
+## 制造业 PMI
+
+PMI 是观察经济景气度最常用的领先指标，50 是荣枯线。
+
+- 高于 50：经济扩张
+- 低于 50：经济收缩
+- 连续三个月回落：值得警惕
+
+### 数据来源
+
+官方 PMI 由国家统计局每月最后一天发布。财新 PMI 由财新智库编制，两者口径不同，经常有背离。
+
+## 社融与 M2
+
+社融反映实体经济获得的资金总量，M2 反映货币供应。
+
+| 指标 | 含义 | 关注点 |
+|------|------|--------|
+| 社融 | 实体经济融资总量 | 增速拐点 |
+| M2 | 广义货币供应 | 与名义 GDP 匹配度 |
+| M1 | 狭义货币 | 企业活期资金 |
+
+### 社融增量统计
+
+央行每月中旬发布社融增量统计表，是我跟踪资金面最权威的来源。
+
+## 国债收益率
+
+十年期国债收益率是无风险利率的锚，对股票估值有直接影响。
+
+收益率上行，往往压制成长股估值；收益率下行，利好长久期资产。
+` },
+{ name: "读书笔记.md", raw: `# 读书笔记
+
+## 《反脆弱》
+
+塔勒布的核心观点：真正的稳健不是不受伤，而是**从波动中获益**。
+
+- 脆弱：在波动中受损
+- 稳健：对波动不敏感
+- 反脆弱：在波动中成长
+
+### 杠铃策略
+
+把大部分资产放在极度安全的地方，小部分去博取高收益，中间地带反而最危险。
+
+> 这和投资里的「核心 + 卫星」配置思路高度一致。
+
+## 《思考，快与慢》
+
+系统 1 是直觉，快但容易出错；系统 2 是理性，慢但可靠。
+
+投资决策中最常见的错误，就是用系统 1 去处理本该系统 2 做的事。
+
+## 心得
+
+把书里的框架套到自己的决策上，才能内化。读书不在于多，在于用。
+
+风险意识、杠铃配置、延迟满足，这三条是我今年最大的收获。
+` },
+{ name: "量化笔记.md", raw: `# 量化笔记
+
+## 回测框架
+
+用 backtesting.py 做策略回测，速度快，适合快速验证想法。
+
+\`\`\`python
+from backtesting import Backtest, Strategy
+
+bt = Backtest(df, Strategy, cash=10000)
+result = bt.run()
+print(result["Return [%]"])
+\`\`\`
+
+### 常见的坑
+
+- 未来函数：用了当日收盘价做当日信号
+- 过拟合：参数优化到历史完美，实盘失效
+- 幸存者偏差：只回测了现在还活着的股票
+
+## 风险管理
+
+量化策略的风险控制靠仓位和止损。
+
+最大回撤比收益更重要，回撤 30% 需要涨 43% 才能回本。
+
+## 数据源
+
+A 股日线用东方财富的 push2his 接口，免 key 直连，适合本地回测。
+
+收益率、成交量、复权价都要对齐口径，否则结论不可信。
+` },
+{ name: "生活与猫.md", raw: `# 生活与猫
+
+## 圆圆
+
+家里养了一只三花猫，叫圆圆，已经两岁了。
+
+三花猫几乎都是母猫，性格独立又粘人。圆圆最喜欢在我写东西的时候跳到键盘旁边。
+
+## 习惯
+
+- 早上 6 点准时叫醒，比闹钟还准
+- 对猫条没有抵抗力
+- 害怕吸尘器，听到就躲到床底
+
+## 记录
+
+养猫之后，生活里多了一点规律，也多了一点不确定。它让「下班回家」变成一件有期待的事。
+
+风险提示：猫毛会掉在键盘缝隙里，清理起来比写代码还费劲。
+` }
+];
+
+/* ================= 状态 ================= */
+let docs = [];           // { name, path, raw, blocks: [{id, heading, text, html}] }
+let currentQuery = [];
+let results = [];        // 扁平结果 [{doc, block, docIdx, blkIdx, count, terms}]
+let currentDocIdx = -1;  // 左侧当前显示的文档索引
+let activeResultIdx = -1;// 当前高亮的结果索引
+let hitOnlyMode = false;
+let hasUserDocs = false; // 是否已载入用户自己的文档（区别于内置示例）
+
+const $ = (id) => document.getElementById(id);
+
+/* ================= Markdown 解析 ================= */
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// 行内：先保护 code span 和链接/图片，再做强调
+function renderInline(raw) {
+  // 保护行内代码
+  const codes = [];
+  let s = raw.replace(/`([^`]+)`/g, (m, c) => {
+    codes.push("<code>" + escapeHtml(c) + "</code>");
+    return "\u0001" + (codes.length - 1) + "\u0001";
+  });
+  // 图片 ![alt](url)
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, alt, url) => `<img alt="${escapeHtml(alt)}" src="${escapeHtml(url)}">`);
+  // 链接 [text](url)
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, txt, url) => `<a href="${escapeHtml(url)}">${escapeHtml(txt)}</a>`);
+  // 强调
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1<em>$2</em>");
+  s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+  // 恢复 code
+  s = s.replace(/\u0001(\d+)\u0001/g, (m, i) => codes[+i]);
+  return s;
+}
+
+// 渲染一个块（lines 数组）为 HTML，并返回纯文本
+function renderBlock(lines) {
+  const joined = lines.join("\n").trim();
+  if (!joined) return { html: "", text: "", heading: "" };
+  let heading = "";
+
+  // 表格
+  if (lines.length >= 2 && lines.every(l => l.trim().startsWith("|")) && /^\|?\s*:?-+:?\s*\|/.test(lines[1])) {
+    const parseRow = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+    const head = parseRow(lines[0]);
+    const body = lines.slice(2).map(parseRow);
+    let html = "<table><thead><tr>" + head.map(h => `<th>${renderInline(h)}</th>`).join("") + "</tr></thead><tbody>";
+    body.forEach(r => { html += "<tr>" + r.map(c => `<td>${renderInline(c)}</td>`).join("") + "</tr>"; });
+    html += "</tbody></table>";
+    return { html, text: joined, heading: "" };
+  }
+
+  // 代码块（fence 内）
+  if (joined.startsWith("```")) {
+    const m = joined.match(/^```(\w*)\n?([\s\S]*?)```$/);
+    if (m) {
+      const lang = m[1], code = m[2];
+      const text = code;
+      const html = `<pre><code${lang ? ` class="lang-${lang}"` : ""}>${escapeHtml(code)}</code></pre>`;
+      return { html, text, heading: "" };
+    }
+  }
+
+  // 标题
+  const h = joined.match(/^(#{1,6})\s+(.*)$/);
+  if (h) {
+    const level = h[1].length, txt = h[2].replace(/[#\s]+$/, "");
+    heading = txt.replace(/[*_`]/g, "").trim();
+    const html = `<h${level}>${renderInline(txt)}</h${level}>`;
+    return { html, text: txt, heading };
+  }
+
+  // 分隔线
+  if (/^([-*_]\s*){3,}$/.test(joined)) return { html: "<hr>", text: "", heading: "" };
+
+  // 引用
+  if (lines.every(l => l.trim().startsWith(">"))) {
+    const inner = lines.map(l => l.trim().replace(/^>\s?/, "")).join("\n");
+    const html = "<blockquote>" + renderInline(inner) + "</blockquote>";
+    return { html, text: inner, heading: "" };
+  }
+
+  // 任务列表
+  if (lines.every(l => /^\s*[-*]\s+\[[ xX]\]/.test(l))) {
+    const items = lines.map(l => {
+      const checked = /^\s*[-*]\s+\[[xX]\]/.test(l);
+      const txt = l.replace(/^\s*[-*]\s+\[[ xX]\]\s*/, "");
+      return `<li class="task"><input type="checkbox" disabled ${checked ? "checked" : ""}> ${renderInline(txt)}</li>`;
+    });
+    const html = "<ul>" + items.join("") + "</ul>";
+    return { html, text: lines.join("\n"), heading: "" };
+  }
+
+  // 无序列表
+  if (lines.every(l => /^\s*[-*+]\s+/.test(l))) {
+    const items = lines.map(l => `<li>${renderInline(l.replace(/^\s*[-*+]\s+/, ""))}</li>`);
+    return { html: "<ul>" + items.join("") + "</ul>", text: lines.join("\n"), heading: "" };
+  }
+
+  // 有序列表
+  if (lines.every(l => /^\s*\d+[.)]\s+/.test(l))) {
+    const items = lines.map(l => `<li>${renderInline(l.replace(/^\s*\d+[.)]\s+/, ""))}</li>`);
+    return { html: "<ol>" + items.join("") + "</ol>", text: lines.join("\n"), heading: "" };
+  }
+
+  // 段落
+  const html = "<p>" + renderInline(joined) + "</p>";
+  return { html, text: joined, heading: "" };
+}
+
+function parseMarkdown(raw) {
+  const blocks = [];
+  const lines = raw.split("\n");
+  let i = 0;
+  let buf = [];
+  const flush = () => {
+    if (buf.length === 0) return;
+    const { html, text, heading } = renderBlock(buf);
+    if (html) blocks.push({ html, text, heading });
+    buf = [];
+  };
+
+  while (i < lines.length) {
+    const line = lines[i];
+    // 代码块
+    if (line.trim().startsWith("```")) {
+      flush();
+      const start = i;
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) i++;
+      if (i < lines.length) i++; // 跳过结尾 ```
+      const codeLines = lines.slice(start, i);
+      const { html, text, heading } = renderBlock(codeLines);
+      if (html) blocks.push({ html, text, heading });
+      continue;
+    }
+    // 空行 = 段落分隔
+    if (line.trim() === "") { flush(); i++; continue; }
+    // 标题开启新块
+    if (/^#{1,6}\s+/.test(line.trim())) {
+      flush();
+      buf.push(line);
+      i++;
+      // 标题块可以吞掉紧随其后的连续非空、非标题、非代码、非空行？不——标题单独成块，内容紧跟则合并语义更好
+      // 这里让标题单独成块，内容作为后续块
+      flush();
+      continue;
+    }
+    buf.push(line);
+    i++;
+  }
+  flush();
+
+  blocks.forEach((b, idx) => {
+    b.id = "";
+    b.idx = idx;
+  });
+  return blocks;
+}
+
+/* ================= 检索 ================= */
+function tokenize(q) {
+  return q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+function runSearch() {
+  const q = $("searchInput").value;
+  currentQuery = tokenize(q);
+  results = [];
+
+  if (currentQuery.length === 0) {
+    $("clearBtn").style.display = "none";
+    $("resultMeta").style.display = "none";
+    $("results").innerHTML = `<div class="empty">
+      <div class="big">输入关键词开始检索</div>
+      <div class="tip">在本地文档中查找包含这些词的内容段，<br>点击后跳到对应位置。</div>
+    </div>`;
+    // 不清空左侧，保留当前文档
+    return;
+  }
+
+  $("clearBtn").style.display = "block";
+
+  docs.forEach((doc, docIdx) => {
+    doc.blocks.forEach((blk, blkIdx) => {
+      const text = blk.text.toLowerCase();
+      if (text && currentQuery.every(t => text.includes(t))) {
+        let count = 0;
+        currentQuery.forEach(t => {
+          let idx = text.indexOf(t);
+          while (idx !== -1) { count++; idx = text.indexOf(t, idx + t.length); }
+        });
+        results.push({ doc, blk, docIdx, blkIdx, count });
+      }
+    });
+  });
+
+  renderResults();
+}
+
+function makeSnippet(text, terms) {
+  // 找第一个命中位置，截取上下文
+  const lower = text.toLowerCase();
+  let best = -1;
+  terms.forEach(t => {
+    const i = lower.indexOf(t);
+    if (i !== -1 && (best === -1 || i < best)) best = i;
+  });
+  let start = 0;
+  if (best > 30) start = best - 24;
+  const snippet = text.slice(start, start + 160);
+  return (start > 0 ? "…" : "") + snippet + (text.length > start + 160 ? "…" : "");
+}
+
+function highlightSnippetText(html, terms) {
+  let s = escapeHtml(html);
+  terms.forEach(t => {
+    const re = new RegExp("(" + escapeRegex(t) + ")", "gi");
+    s = s.replace(re, "<mark>$1</mark>");
+  });
+  return s;
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderResults() {
+  $("resultMeta").style.display = "flex";
+  $("hitCount").textContent = results.length;
+
+  const docCount = new Set(results.map(r => r.docIdx)).size;
+  $("docHitCount").textContent = `分布在 ${docCount} 篇文档`;
+
+  if (results.length === 0) {
+    $("results").innerHTML = `<div class="empty">
+      <div class="big">没有匹配的内容</div>
+      <div class="tip">换个关键词试试，或减少关键词数量。</div>
+    </div>`;
+    return;
+  }
+
+  // 按文档分组
+  const groups = [];
+  const seen = new Map();
+  results.forEach(r => {
+    if (!seen.has(r.docIdx)) {
+      seen.set(r.docIdx, groups.length);
+      groups.push({ docIdx: r.docIdx, items: [] });
+    }
+    groups[seen.get(r.docIdx)].items.push(r);
+  });
+
+  let html = "";
+  groups.forEach(g => {
+    const doc = docs[g.docIdx];
+    html += `<div class="doc-group">
+      <div class="doc-group-head">
+        <span class="fname" title="${escapeHtml(doc.path || doc.name)}">${escapeHtml(doc.name)}</span>
+        <span class="badge">${g.items.length} 处</span>
+      </div>`;
+    g.items.forEach(r => {
+      const idx = results.indexOf(r);
+      const heading = r.blk.heading ? `<div class="heading">${highlightSnippetText(r.blk.heading, currentQuery)}</div>` : "";
+      // 标题块命中时，用紧随其后的正文段做摘要，避免标题/摘要重复
+      let snippetText = r.blk.text;
+      if (r.blk.html.trim().startsWith("<h")) {
+        const next = docs[r.docIdx].blocks[r.blkIdx + 1];
+        if (next && next.html && !next.html.trim().startsWith("<h") && next.text) snippetText = next.text;
+      }
+      const snippet = makeSnippet(snippetText, currentQuery);
+      html += `<button class="result-item" data-idx="${idx}">
+        ${heading}
+        <div class="snippet">${highlightSnippetText(snippet, currentQuery)}</div>
+      </button>`;
+    });
+    html += `</div>`;
+  });
+  $("results").innerHTML = html;
+
+  $("results").querySelectorAll(".result-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const idx = +el.dataset.idx;
+      setActiveResult(idx);
+      jumpToResult(idx);
+    });
+  });
+}
+
+/* ================= 左侧渲染 ================= */
+function renderDoc(docIdx) {
+  currentDocIdx = docIdx;
+  const doc = docs[docIdx];
+  $("welcome").style.display = "none";
+  $("doc").style.display = "block";
+  $("docTitle").innerHTML = escapeHtml(doc.name) + (doc.path ? `<span class="path">${escapeHtml(doc.path)}</span>` : "");
+
+  const hitSet = new Set(results.filter(r => r.docIdx === docIdx).map(r => r.blkIdx));
+  $("docBadge").style.display = hitSet.size ? "inline-flex" : "none";
+  $("docBadge").textContent = hitSet.size ? `${hitSet.size} 处命中` : "";
+
+  const showAll = !hitOnlyMode;
+  let html = "";
+  doc.blocks.forEach((blk, i) => {
+    if (!showAll && !hitSet.has(i)) return;
+    const hitCls = hitSet.has(i) ? " hit" : "";
+    html += `<div class="blk${hitCls}" id="blk-${docIdx}-${i}">${blk.html}</div>`;
+  });
+  $("doc").innerHTML = html;
+
+  // 关键词高亮
+  if (currentQuery.length) highlightDocKeywords(docIdx);
+}
+
+function highlightDocKeywords(docIdx) {
+  const root = $("doc");
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const p = node.parentElement;
+      if (p && (p.tagName === "CODE" || p.tagName === "PRE" || p.tagName === "MARK")) return NodeFilter.FILTER_REJECT;
+      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+
+  nodes.forEach(node => {
+    const text = node.nodeValue;
+    let changed = false;
+    let out = text;
+    currentQuery.forEach(t => {
+      const re = new RegExp("(" + escapeRegex(t) + ")", "gi");
+      if (re.test(out)) {
+        changed = true;
+        out = out.replace(re, "<mark>$1</mark>");
+      }
+    });
+    if (!changed) return;
+    const span = document.createElement("span");
+    span.innerHTML = out;
+    const parent = node.parentNode;
+    node.replaceWith(span);
+    // 把 span 的内容提出来，避免包裹
+    const frag = document.createDocumentFragment();
+    while (span.firstChild) frag.appendChild(span.firstChild);
+    parent.replaceChild(frag, span);
+  });
+}
+
+function jumpToResult(idx) {
+  const r = results[idx];
+  if (!r) return;
+  if (r.docIdx !== currentDocIdx) renderDoc(r.docIdx);
+  const el = $("blk-" + r.docIdx + "-" + r.blkIdx);
+  if (el) {
+    $("doc").querySelectorAll(".blk.active").forEach(x => x.classList.remove("active"));
+    el.classList.add("active");
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+function setActiveResult(idx) {
+  activeResultIdx = idx;
+  $("results").querySelectorAll(".result-item").forEach(el => {
+    el.classList.toggle("active", +el.dataset.idx === idx);
+  });
+}
+
+function navigate(delta) {
+  if (results.length === 0) return;
+  let next = activeResultIdx === -1 ? 0 : activeResultIdx + delta;
+  if (next < 0) next = 0;
+  if (next >= results.length) next = results.length - 1;
+  setActiveResult(next);
+  jumpToResult(next);
+  // 滚动结果列表让选中项可见
+  const el = $("results").querySelector(`[data-idx="${next}"]`);
+  if (el) el.scrollIntoView({ block: "nearest" });
+}
+
+/* ================= 载入文档 ================= */
+function loadDocs(newDocs) {
+  docs = newDocs.map(d => ({
+    name: d.name, path: d.path || "", raw: d.raw,
+    blocks: parseMarkdown(d.raw)
+  }));
+  updateStats();
+  // 重置
+  results = [];
+  currentDocIdx = -1;
+  $("doc").style.display = "none";
+  $("welcome").style.display = "block";
+  $("docTitle").textContent = "选择文档开始";
+  $("docBadge").style.display = "none";
+  if (docs.length > 0) {
+    $("docTitle").textContent = `${docs.length} 篇文档已载入 · 点击右侧结果查看`;
+    runSearch(); // 刷新右侧（空查询则显示提示）
+  }
+}
+
+function updateStats() {
+  const totalBlocks = docs.reduce((s, d) => s + d.blocks.length, 0);
+  $("stats").innerHTML = docs.length
+    ? `共 <b>${docs.length}</b> 篇文档 · <b>${totalBlocks}</b> 个内容段`
+    : "未加载文档";
+}
+
+/* ================= 文件选择 ================= */
+async function pickFolder() {
+  if (window.showDirectoryPicker) {
+    try {
+      const dir = await window.showDirectoryPicker();
+      const found = [];
+      await walkDir(dir, "", found);
+      if (found.length === 0) {
+        alert("该文件夹里没有找到 .md 文档");
+        return;
+      }
+      loadDocs(found);
+      hasUserDocs = true;
+    } catch (e) {
+      if (e.name !== "AbortError") console.error(e);
+    }
+  } else {
+    $("fileInput").click();
+  }
+}
+
+async function walkDir(dir, prefix, out) {
+  for await (const entry of dir.values()) {
+    if (entry.kind === "file") {
+      if (/\.(md|markdown|txt)$/i.test(entry.name)) {
+        const file = await entry.getFile();
+        const raw = await file.text();
+        out.push({ name: entry.name, path: prefix + entry.name, raw });
+      }
+    } else if (entry.kind === "directory") {
+      await walkDir(entry, prefix + entry.name + "/", out);
+    }
+  }
+}
+
+$("fileInput").addEventListener("change", async (e) => {
+  const files = Array.from(e.target.files || []);
+  const mdFiles = files.filter(f => /\.(md|markdown|txt)$/i.test(f.name));
+  const out = [];
+  for (const f of mdFiles) {
+    const raw = await f.text();
+    // webkitdirectory 下 f.webkitRelativePath 含相对路径
+    out.push({ name: f.name, path: f.webkitRelativePath || "", raw });
+  }
+  if (out.length === 0) { alert("没有 .md 文档"); return; }
+  loadDocs(out);
+  hasUserDocs = true;
+  e.target.value = "";
+});
+
+/* ================= 拖拽读入 ================= */
+let dragDepth = 0;
+function showDropOverlay() { $("dropOverlay").classList.add("show"); }
+function hideDropOverlay() { $("dropOverlay").classList.remove("show"); }
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+async function addDocsFromDrop(fileList) {
+  const files = Array.from(fileList || []).filter(f => /\.(md|markdown|txt)$/i.test(f.name));
+  if (files.length === 0) return 0;
+  // 第一次拖入真实文档时，替换掉内置示例，避免混在一起
+  if (!hasUserDocs) { docs = []; hasUserDocs = true; }
+  const parsed = [];
+  for (const f of files) {
+    const raw = await f.text();
+    parsed.push({ name: f.name, path: "", raw });
+  }
+  parsed.forEach(nd => {
+    const i = docs.findIndex(d => d.name === nd.name);
+    const doc = { name: nd.name, path: nd.path, raw: nd.raw, blocks: parseMarkdown(nd.raw) };
+    if (i >= 0) docs[i] = doc; else docs.push(doc);
+  });
+  updateStats();
+  // 清空搜索，直接展示拖入的第一篇
+  $("searchInput").value = "";
+  currentQuery = [];
+  results = [];
+  $("clearBtn").style.display = "none";
+  $("resultMeta").style.display = "none";
+  $("results").innerHTML = `<div class="empty">
+    <div class="big">输入关键词开始检索</div>
+    <div class="tip">在本地文档中查找包含这些词的内容段，<br>点击后跳到对应位置。</div>
+  </div>`;
+  const firstIdx = docs.findIndex(d => d.name === parsed[0].name);
+  if (firstIdx >= 0) renderDoc(firstIdx);
+  return files.length;
+}
+
+/* ================= 事件绑定 ================= */
+$("searchInput").addEventListener("input", () => {
+  activeResultIdx = -1;
+  runSearch();
+});
+$("searchInput").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") { e.preventDefault(); navigate(1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); navigate(-1); }
+  else if (e.key === "Enter") { e.preventDefault(); if (activeResultIdx >= 0) jumpToResult(activeResultIdx); else if (results.length) { setActiveResult(0); jumpToResult(0); } }
+  else if (e.key === "Escape") { $("searchInput").value = ""; runSearch(); }
+});
+$("clearBtn").addEventListener("click", () => {
+  $("searchInput").value = "";
+  runSearch();
+  $("searchInput").focus();
+});
+
+$("pickBtn").addEventListener("click", pickFolder);
+
+$("modeFull").addEventListener("click", () => {
+  hitOnlyMode = false;
+  $("modeFull").classList.add("on");
+  $("modeHit").classList.remove("on");
+  if (currentDocIdx >= 0) renderDoc(currentDocIdx);
+});
+$("modeHit").addEventListener("click", () => {
+  hitOnlyMode = true;
+  $("modeHit").classList.add("on");
+  $("modeFull").classList.remove("on");
+  if (currentDocIdx >= 0) renderDoc(currentDocIdx);
+});
+
+// 主题切换
+$("themeBtn").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("mdreader-theme", next); } catch (e) {}
+});
+
+// 全局 / 聚焦搜索
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement !== $("searchInput")) {
+    e.preventDefault();
+    $("searchInput").focus();
+  }
+});
+
+// 拖拽文件到窗口
+document.addEventListener("dragenter", (e) => {
+  e.preventDefault();
+  dragDepth++;
+  showDropOverlay();
+});
+document.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "copy";
+});
+document.addEventListener("dragleave", (e) => {
+  dragDepth--;
+  if (dragDepth <= 0) { dragDepth = 0; hideDropOverlay(); }
+});
+document.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  hideDropOverlay();
+  const files = e.dataTransfer.files;
+  if (!files || files.length === 0) return;
+  const n = await addDocsFromDrop(files);
+  showToast(n > 0 ? `已读入 ${n} 篇文档` : "拖入的不是 md 文档");
+});
+
+/* ================= 启动 ================= */
+(function init() {
+  try {
+    const saved = localStorage.getItem("mdreader-theme");
+    if (saved) document.documentElement.setAttribute("data-theme", saved);
+  } catch (e) {}
+  loadDocs(SAMPLES);
+  // 支持 URL 参数 ?q=关键词 直接带入检索并定位（便于分享与截图）
+  try {
+    const q = new URLSearchParams(location.search).get("q");
+    if (q) {
+      $("searchInput").value = q;
+      runSearch();
+      if (results.length) { setActiveResult(0); jumpToResult(0); }
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>
