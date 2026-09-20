@@ -17,6 +17,8 @@
 
 ## 快速开始
 
+也可以直接从 [Releases](https://github.com/Jesse1024/md-reader/releases) 下载打包好的 zip（含一键安装脚本）。
+
 下载 `index.html`，双击用浏览器打开即可。无需安装、无需联网。
 
 Windows 用户也可以直接双击 `install.bat`，一键装到桌面并生成快捷方式，见下文「安装与桌面快捷方式」。
