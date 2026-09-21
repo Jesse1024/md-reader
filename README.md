@@ -71,7 +71,7 @@ open index.html    # macOS
 
 两种方式更新到 GitHub 最新版：
 
-- **阅读器内检查**：点顶栏的「刷新」图标按钮，自动对比 GitHub 最新 Release；发现新版时可「立即更新」（会弹保存框，选择覆盖安装目录的 index.html）或「下载安装包」。
+- **阅读器内检查**：点顶栏的「刷新」图标按钮，自动对比 GitHub 最新 Release；发现新版时点「立即更新」一键覆盖。首次会提示选一次安装目录，之后记住目录，更新只需点一下（可能需要点一次浏览器授权）。
 - **脚本全自动**：双击安装目录里的 `update.bat`（默认在 `%LOCALAPPDATA%\MDReader\update.bat`），自动下载最新版并覆盖，无需选路径。
 
 版本号写在 `index.html` 的 `<meta name="app-version">` 里，与 Release tag 保持一致；fork 后请把 `index.html` 里的 `UPDATE_REPO` 改成自己的仓库。

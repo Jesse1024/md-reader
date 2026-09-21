@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="icon.ico" type="image/x-icon">
 <title>MD 阅读器 · 本地文档检索定位</title>
-<meta name="app-version" content="1.3.0">
+<meta name="app-version" content="1.4.0">
 <meta name="author" content="南山怪客">
 <meta name="copyright" content="© 2026 南山怪客">
 <style>
@@ -1175,6 +1175,38 @@ async function checkUpdate() {
   }
 }
 
+/* IndexedDB 持久化目录句柄：第一次选目录，之后一键覆盖 */
+function openUpdateDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("mdreader-update", 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore("handles"); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function saveDirHandle(handle) {
+  const db = await openUpdateDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("handles", "readwrite");
+    tx.objectStore("handles").put(handle, "dir");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function loadDirHandle() {
+  try {
+    const db = await openUpdateDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction("handles", "readonly");
+      const req = tx.objectStore("handles").get("dir");
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
 async function doUpdate() {
   if (!latestInfo) return;
   const tag = latestInfo.tag_name;
@@ -1184,31 +1216,48 @@ async function doUpdate() {
     const r = await fetch(url);
     if (!r.ok) throw new Error("HTTP " + r.status);
     const html = await r.text();
-    if (!window.showSaveFilePicker) {
+
+    // Firefox / Safari 无 File System Access API，降级为下载
+    if (!window.showDirectoryPicker && !window.showSaveFilePicker) {
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       a.download = "index.html";
       a.click();
       $("updateTitle").textContent = "已下载";
-      $("updateBody").innerHTML = "浏览器不支持直接保存，已下载最新 index.html。请用它替换安装目录里的 index.html（通常在 <code>%LOCALAPPDATA%\\MDReader\\index.html</code>）。";
+      $("updateBody").innerHTML = "当前浏览器不支持一键覆盖，已下载最新 index.html。请手动替换安装目录里的 index.html，或双击安装目录里的 update.bat。";
       $("updateDoBtn").style.display = "none";
       $("updateDownloadBtn").style.display = "none";
       return;
     }
-    $("updateBody").innerHTML = "请在保存对话框中选择安装目录，覆盖 index.html（通常在 <code>%LOCALAPPDATA%\\MDReader\\index.html</code>）。";
-    const handle = await window.showSaveFilePicker({
-      suggestedName: "index.html",
-      types: [{ description: "HTML 文件", accept: { "text/html": [".html"] } }]
-    });
-    const w = await handle.createWritable();
+
+    // 拿目录句柄：优先用上次记住的，否则第一次选一次
+    let dir = await loadDirHandle();
+    if (!dir) {
+      $("updateBody").textContent = "首次更新：请在弹窗中选择安装目录（MDReader 文件夹）。之后更新将一键完成。";
+      dir = await window.showDirectoryPicker();
+      await saveDirHandle(dir);
+    }
+
+    // 写入权限：已授权就直接用，否则弹一次浏览器授权
+    let perm = await dir.queryPermission({ mode: "readwrite" });
+    if (perm !== "granted") {
+      $("updateBody").textContent = "需要授权写入该目录，请在浏览器弹窗中点击「允许」。";
+      perm = await dir.requestPermission({ mode: "readwrite" });
+    }
+    if (perm !== "granted") throw new Error("未获得写入权限，已取消。");
+
+    // 一键覆盖 index.html
+    const fileHandle = await dir.getFileHandle("index.html", { create: true });
+    const w = await fileHandle.createWritable();
     await w.write(html);
     await w.close();
+
     $("updateTitle").textContent = "更新完成";
-    $("updateBody").textContent = "已保存最新版，关闭后重新打开阅读器生效。";
+    $("updateBody").textContent = "已覆盖安装目录的 index.html，关闭后重新打开阅读器生效。";
     $("updateDoBtn").style.display = "none";
     $("updateDownloadBtn").style.display = "none";
   } catch (e) {
-    if (e.name === "AbortError") return; // 用户取消保存
+    if (e.name === "AbortError") return; // 用户取消
     $("updateTitle").textContent = "更新失败";
     $("updateBody").textContent = e.message;
   }
