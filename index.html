@@ -6,6 +6,8 @@
 <link rel="icon" href="icon.ico" type="image/x-icon">
 <title>MD 阅读器 · 本地文档检索定位</title>
 <meta name="app-version" content="1.2.0">
+<meta name="author" content="南山怪客">
+<meta name="copyright" content="© 2026 南山怪客">
 <style>
   :root {
     --bg: #f6f4f0;
@@ -295,6 +297,16 @@
   .modal-body pre { white-space: pre-wrap; font-family: inherit; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
   .modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
   .modal-actions .btn { padding: 6px 14px; }
+  .modal-body a { color: var(--accent-ink); text-underline-offset: 3px; }
+
+  /* 版权署名 */
+  .credit {
+    position: fixed; right: 12px; bottom: 8px; z-index: 20;
+    font-size: 11.5px; color: var(--muted); background: none; border: none;
+    cursor: pointer; opacity: .55; transition: opacity .15s, color .15s;
+    font-family: var(--font-ui); padding: 2px 4px;
+  }
+  .credit:hover { opacity: 1; color: var(--accent-ink); }
 
   @media (prefers-reduced-motion: reduce) {
     * { scroll-behavior: auto !important; transition: none !important; }
@@ -386,6 +398,18 @@
       <button class="btn" id="updateDownloadBtn" style="display:none">下载安装包</button>
       <button class="btn primary" id="updateDoBtn" style="display:none">立即更新</button>
       <button class="btn" id="updateCloseBtn">关闭</button>
+    </div>
+  </div>
+</div>
+
+<button class="credit" id="creditBtn" title="关于">© 南山怪客</button>
+
+<div class="modal-overlay" id="aboutModal">
+  <div class="modal">
+    <div class="modal-title">关于</div>
+    <div class="modal-body" id="aboutBody"></div>
+    <div class="modal-actions">
+      <button class="btn" id="aboutCloseBtn">关闭</button>
     </div>
   </div>
 </div>
@@ -1198,6 +1222,21 @@ $("updateDownloadBtn").addEventListener("click", () => {
 });
 $("updateModal").addEventListener("click", (e) => {
   if (e.target === $("updateModal")) $("updateModal").classList.remove("show");
+});
+
+/* ================= 关于 ================= */
+$("creditBtn").addEventListener("click", () => {
+  $("aboutBody").innerHTML =
+    `<p><strong>MD 阅读器</strong> · 本地 Markdown 文档阅读器</p>` +
+    `<p>版本 v${APP_VERSION}</p>` +
+    `<p>作者：南山怪客</p>` +
+    `<p>许可证：<a href="https://github.com/Jesse1024/md-reader/blob/main/LICENSE" target="_blank">MIT</a></p>` +
+    `<p><a href="https://github.com/Jesse1024/md-reader" target="_blank">GitHub 仓库</a></p>`;
+  $("aboutModal").classList.add("show");
+});
+$("aboutCloseBtn").addEventListener("click", () => $("aboutModal").classList.remove("show"));
+$("aboutModal").addEventListener("click", (e) => {
+  if (e.target === $("aboutModal")) $("aboutModal").classList.remove("show");
 });
 
 // 全局 / 聚焦搜索
