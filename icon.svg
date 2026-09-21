@@ -1,4 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256">
   <rect x="0" y="0" width="64" height="64" rx="14" fill="#b5493a"/>
-  <text x="32" y="45" text-anchor="middle" font-family="SimHei, 'Arial Black', 'Segoe UI', 'Microsoft YaHei', sans-serif" font-size="34" font-weight="bold" fill="#ffffff">MD</text>
+  <path d="M 4 52 L 18 34 L 26 44 L 32 24 L 38 44 L 46 34 L 60 52 Z" fill="#ffffff"/>
 </svg>
