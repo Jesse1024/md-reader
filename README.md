@@ -103,9 +103,14 @@ md-reader/
 ├── update.bat      # Windows 一键更新（双击）
 ├── update.ps1      # 更新脚本（update.bat 调用）
 ├── screenshot.png  # 截图
+├── CHANGELOG.md    # 更新日志
 ├── README.md
 └── LICENSE
 ```
+
+## 更新日志
+
+每个版本更新了什么，见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 
