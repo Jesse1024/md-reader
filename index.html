@@ -513,9 +513,10 @@ A 股日线用东方财富的 push2his 接口，免 key 直连，适合本地回
 ];
 
 /* ================= 状态 ================= */
-let docs = [];           // { name, path, raw, blocks: [{id, heading, text, html}] }
+let docs = [];           // { name, path, raw, blocks: [{id, heading, text, lower, html}] }
 let currentQuery = [];
 let results = [];        // 扁平结果 [{doc, block, docIdx, blkIdx, count, terms}]
+let searchTimer = null;  // 输入防抖定时器
 let currentDocIdx = -1;  // 左侧当前显示的文档索引
 let activeResultIdx = -1;// 当前高亮的结果索引
 let hitOnlyMode = false;
@@ -671,6 +672,7 @@ function parseMarkdown(raw) {
   blocks.forEach((b, idx) => {
     b.id = "";
     b.idx = idx;
+    b.lower = b.text.toLowerCase(); // 载入时预生成小写文本，检索时直接用，免去每次扫描重复转换
   });
   return blocks;
 }
@@ -700,7 +702,7 @@ function runSearch() {
 
   docs.forEach((doc, docIdx) => {
     doc.blocks.forEach((blk, blkIdx) => {
-      const text = blk.text.toLowerCase();
+      const text = blk.lower || blk.text.toLowerCase();
       if (text && currentQuery.every(t => text.includes(t))) {
         let count = 0;
         currentQuery.forEach(t => {
@@ -743,10 +745,14 @@ function escapeRegex(s) {
 }
 
 function renderResults() {
-  $("resultMeta").style.display = "flex";
-  $("hitCount").textContent = results.length;
-
+  const totalHits = results.length;
   const docCount = new Set(results.map(r => r.docIdx)).size;
+  // 命中过多时只渲染前 300 条（计数仍显示全部），避免巨型 innerHTML 把页面卡死
+  if (totalHits > 300) results = results.slice(0, 300);
+
+  $("resultMeta").style.display = "flex";
+  $("hitCount").textContent = totalHits;
+
   $("docHitCount").textContent = `分布在 ${docCount} 篇文档`;
 
   if (results.length === 0) {
@@ -1021,13 +1027,22 @@ async function addDocsFromDrop(fileList) {
 /* ================= 事件绑定 ================= */
 $("searchInput").addEventListener("input", () => {
   activeResultIdx = -1;
-  runSearch();
+  // 150ms 防抖：打字过程中不扫描，停下才扫，大语料下敲字不卡
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 150);
 });
 $("searchInput").addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") { e.preventDefault(); navigate(1); }
   else if (e.key === "ArrowUp") { e.preventDefault(); navigate(-1); }
-  else if (e.key === "Enter") { e.preventDefault(); if (activeResultIdx >= 0) jumpToResult(activeResultIdx); else if (results.length) { setActiveResult(0); jumpToResult(0); } }
-  else if (e.key === "Escape") { $("searchInput").value = ""; runSearch(); }
+  else if (e.key === "Enter") {
+    e.preventDefault();
+    // 防抖窗口内回车时立即执行检索，避免拿到上一轮的旧结果
+    clearTimeout(searchTimer);
+    runSearch();
+    if (activeResultIdx >= 0) jumpToResult(activeResultIdx);
+    else if (results.length) { setActiveResult(0); jumpToResult(0); }
+  }
+  else if (e.key === "Escape") { clearTimeout(searchTimer); $("searchInput").value = ""; runSearch(); }
 });
 $("clearBtn").addEventListener("click", () => {
   $("searchInput").value = "";
