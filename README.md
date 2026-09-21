@@ -95,7 +95,10 @@ open index.html    # macOS
 |------|--------------|---------|--------|
 | 检索 / 定位 / 渲染 | 支持 | 支持 | 支持 |
 | 拖拽读入 | 支持 | 支持 | 支持 |
-| 选文件夹 | 支持 | 降级为选文件 | 降级为选文件 |
+| 选文件夹 | 支持 | 支持 | 支持 |
+| 检查更新（立即更新） | 支持 | 降级为下载 | 降级为下载 |
+
+> 「选文件夹」在 Chrome / Edge 用 File System Access API，在 Firefox / Safari 用 `webkitdirectory`，两者都能选整个文件夹（含子目录）。「立即更新」依赖 `showSaveFilePicker`（仅 Chrome / Edge），Firefox / Safari 自动降级为「下载后手动替换」；`update.bat` 脚本不受浏览器影响。
 
 ## 目录结构
 
