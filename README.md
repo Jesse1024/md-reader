@@ -76,6 +76,11 @@ open index.html    # macOS
 
 版本号写在 `index.html` 的 `<meta name="app-version">` 里，与 Release tag 保持一致；fork 后请把 `index.html` 里的 `UPDATE_REPO` 改成自己的仓库。
 
+## 卸载
+
+- 用 `install.bat` 安装的：双击安装目录里的 `uninstall.bat`（或仓库里的 uninstall.bat），自动删除桌面快捷方式和 `%LOCALAPPDATA%\MDReader`。
+- 手动安装的：删除桌面快捷方式 + 删除 index.html 所在目录即可。应用不写注册表、不设自启，没有其他残留。
+
 ## 技术说明
 
 - 纯 HTML/CSS/JS 单文件，无构建步骤，无第三方依赖。
@@ -102,6 +107,8 @@ md-reader/
 ├── install.ps1     # 安装脚本（install.bat 调用）
 ├── update.bat      # Windows 一键更新（双击）
 ├── update.ps1      # 更新脚本（update.bat 调用）
+├── uninstall.bat   # Windows 一键卸载（双击）
+├── uninstall.ps1   # 卸载脚本（uninstall.bat 调用）
 ├── screenshot.png  # 截图
 ├── CHANGELOG.md    # 更新日志
 ├── README.md

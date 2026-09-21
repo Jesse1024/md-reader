@@ -34,7 +34,7 @@ Copy-Item (Join-Path $src 'index.html') (Join-Path $dest 'index.html') -Force
 if (Test-Path (Join-Path $src 'icon.ico')) {
   Copy-Item (Join-Path $src 'icon.ico') (Join-Path $dest 'icon.ico') -Force
 }
-foreach ($u in @('update.bat', 'update.ps1')) {
+foreach ($u in @('update.bat', 'update.ps1', 'uninstall.bat', 'uninstall.ps1')) {
   if (Test-Path (Join-Path $src $u)) { Copy-Item (Join-Path $src $u) (Join-Path $dest $u) -Force }
 }
 
