@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="icon.ico" type="image/x-icon">
 <title>MD 阅读器 · 本地文档检索定位</title>
-<meta name="app-version" content="1.5.1">
+<meta name="app-version" content="1.6.0">
 <meta name="author" content="南山怪客">
 <meta name="copyright" content="© 2026 南山怪客">
 <style>
@@ -106,6 +106,35 @@
     width: 380px; flex: none; display: flex; flex-direction: column;
     background: var(--panel); border-left: 1px solid var(--border); min-height: 0;
   }
+
+  /* 右侧 tab 切换：检索 / 文件 */
+  .tabs { flex: none; display: flex; gap: 2px; padding: 10px 12px 0; border-bottom: 1px solid var(--border); }
+  .tab {
+    appearance: none; border: none; background: transparent;
+    font-family: inherit; font-size: 13px; font-weight: 550; color: var(--muted);
+    padding: 6px 12px 7px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: 6px 6px 0 0;
+    transition: color .12s, border-color .12s;
+  }
+  .tab:hover { color: var(--ink-soft); }
+  .tab.on { color: var(--accent-ink); border-bottom-color: var(--accent); }
+  .tab .cnt { font-size: 11px; background: var(--accent-soft); color: var(--accent-ink); border-radius: 20px; padding: 0 7px; font-weight: 600; line-height: 1.6; }
+
+  .pane-search { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .pane-files { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
+  .file-item {
+    display: flex; flex-direction: column; align-items: flex-start; width: 100%;
+    text-align: left; cursor: pointer; gap: 1px;
+    border: 1px solid transparent; border-left: 3px solid transparent;
+    background: transparent; border-radius: 7px; padding: 7px 9px; margin: 1px 0;
+    font-family: inherit; transition: background .12s, border-color .12s;
+  }
+  .file-item:hover { background: var(--bg); }
+  .file-item.active { background: var(--sel-bg); border-color: var(--border); border-left-color: var(--accent); }
+  .file-item .fname { font-size: 13px; font-weight: 600; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .file-item .fpath { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
   .searchbox { padding: 14px 14px 10px; }
   .search-wrap {
     display: flex; align-items: center; gap: 8px;
@@ -362,23 +391,35 @@
     </section>
 
     <aside class="sidebar">
-      <div class="searchbox">
-        <div class="search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input type="text" id="searchInput" placeholder="检索关键词，空格分隔多个词" autocomplete="off" spellcheck="false">
-          <button class="clear" id="clearBtn" title="清空">×</button>
+      <div class="tabs">
+        <button class="tab on" id="tabSearch">检索</button>
+        <button class="tab" id="tabFiles">文件 <span class="cnt" id="fileCount"></span></button>
+      </div>
+      <div class="pane-search" id="panelSearch">
+        <div class="searchbox">
+          <div class="search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="searchInput" placeholder="检索关键词，空格分隔多个词" autocomplete="off" spellcheck="false">
+            <button class="clear" id="clearBtn" title="清空">×</button>
+          </div>
+          <div class="search-hint" id="searchHint">支持多词并含检索 · 不区分大小写</div>
         </div>
-        <div class="search-hint" id="searchHint">支持多词并含检索 · 不区分大小写</div>
+        <div class="result-meta" id="resultMeta" style="display:none">
+          <span>命中 <span class="count" id="hitCount">0</span> 处</span>
+          <span class="sep"></span>
+          <span id="docHitCount"></span>
+        </div>
+        <div class="results" id="results">
+          <div class="empty">
+            <div class="big">输入关键词开始检索</div>
+            <div class="tip">在本地文档中查找包含这些词的内容段，<br>点击后跳到对应位置。</div>
+          </div>
+        </div>
       </div>
-      <div class="result-meta" id="resultMeta" style="display:none">
-        <span>命中 <span class="count" id="hitCount">0</span> 处</span>
-        <span class="sep"></span>
-        <span id="docHitCount"></span>
-      </div>
-      <div class="results" id="results">
+      <div class="pane-files" id="panelFiles" style="display:none">
         <div class="empty">
-          <div class="big">输入关键词开始检索</div>
-          <div class="tip">在本地文档中查找包含这些词的内容段，<br>点击后跳到对应位置。</div>
+          <div class="big">暂无文档</div>
+          <div class="tip">点左上角「选择 MD 文件夹」载入文档后，<br>这里会列出所有文件，点击查看内容。</div>
         </div>
       </div>
     </aside>
@@ -892,6 +933,9 @@ function renderDoc(docIdx) {
 
   // 关键词高亮
   if (currentQuery.length) highlightDocKeywords(docIdx);
+
+  // 文件列表高亮当前文档
+  document.querySelectorAll(".file-item").forEach(x => x.classList.toggle("active", +x.dataset.idx === docIdx));
 }
 
 function highlightDocKeywords(docIdx) {
@@ -961,6 +1005,44 @@ function navigate(delta) {
   if (el) el.scrollIntoView({ block: "nearest" });
 }
 
+/* ================= 文件列表 ================= */
+function renderFileList() {
+  const cnt = $("fileCount");
+  if (cnt) cnt.textContent = docs.length || "";
+  const list = $("panelFiles");
+  if (!docs.length) {
+    list.innerHTML = `<div class="empty">
+      <div class="big">暂无文档</div>
+      <div class="tip">点左上角「选择 MD 文件夹」载入文档后，<br>这里会列出所有文件，点击查看内容。</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML = docs.map((doc, i) => `
+    <button class="file-item${i === currentDocIdx ? " active" : ""}" data-idx="${i}" title="${escapeHtml(doc.path || doc.name)}">
+      <span class="fname">${escapeHtml(doc.name)}</span>
+      ${doc.path ? `<span class="fpath">${escapeHtml(doc.path)}</span>` : ""}
+    </button>`).join("");
+  list.querySelectorAll(".file-item").forEach(el => {
+    el.addEventListener("click", () => openFile(+el.dataset.idx));
+  });
+}
+
+function openFile(idx) {
+  renderDoc(idx);
+  document.querySelectorAll(".file-item").forEach(x => x.classList.toggle("active", +x.dataset.idx === idx));
+  const sc = $("docScroll");
+  if (sc) sc.scrollTop = 0;
+}
+
+function switchTab(tab) {
+  const isSearch = tab === "search";
+  $("tabSearch").classList.toggle("on", isSearch);
+  $("tabFiles").classList.toggle("on", !isSearch);
+  $("panelSearch").style.display = isSearch ? "" : "none";
+  $("panelFiles").style.display = isSearch ? "none" : "";
+  if (!isSearch) renderFileList();
+}
+
 /* ================= 载入文档 ================= */
 function loadDocs(newDocs) {
   docs = newDocs.map(d => ({
@@ -968,6 +1050,7 @@ function loadDocs(newDocs) {
     blocks: parseMarkdown(d.raw)
   }));
   updateStats();
+  renderFileList();
   // 重置
   results = [];
   currentDocIdx = -1;
@@ -1068,6 +1151,7 @@ async function addDocsFromDrop(fileList) {
     if (i >= 0) docs[i] = doc; else docs.push(doc);
   });
   updateStats();
+  renderFileList();
   // 清空搜索，直接展示拖入的第一篇
   $("searchInput").value = "";
   currentQuery = [];
@@ -1110,6 +1194,9 @@ $("clearBtn").addEventListener("click", () => {
 });
 
 $("pickBtn").addEventListener("click", pickFolder);
+
+$("tabSearch").addEventListener("click", () => switchTab("search"));
+$("tabFiles").addEventListener("click", () => switchTab("files"));
 
 $("modeFull").addEventListener("click", () => {
   hitOnlyMode = false;
